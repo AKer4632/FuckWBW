@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>万步网步数自动化 - 登录授权</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+        max-width: 880px;
+        margin: 30px auto;
+        padding: 20px;
+        background: #f5f7fa;
+        color: #1f2937;
+      }
+      h1 {
+        margin: 0 0 20px;
+        font-size: 22px;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+      .row label {
+        min-width: 88px;
+        color: #4b5563;
+      }
+      input[type="text"],
+      input[type="password"],
+      input[type="number"] {
+        flex: 1;
+        min-width: 200px;
+        padding: 8px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 14px;
+      }
+      input:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+      }
+      button {
+        padding: 10px 24px;
+        background: #2563eb;
+        color: #fff;
+        border: 0;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      button:hover {
+        background: #1d4ed8;
+      }
+      button:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+      }
+      pre {
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 16px;
+        border-radius: 6px;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 12.5px;
+        line-height: 1.55;
+        min-height: 320px;
+        max-height: 60vh;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        margin-left: 8px;
+      }
+      .badge.ok {
+        background: #d1fae5;
+        color: #065f46;
+      }
+      .badge.fail {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+      .badge.run {
+        background: #dbeafe;
+        color: #1e40af;
+      }
+      .hint {
+        color: #6b7280;
+        font-size: 12.5px;
+        margin-top: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🥾 万步网步数自动化 <span id="statusBadge"></span></h1>
+
+    <div class="card">
+      <div class="row">
+        <label>账号：</label>
+        <input
+          id="account"
+          type="text"
+          placeholder="手机号"
+          autocomplete="username"
+        />
+      </div>
+      <div class="row">
+        <label>密码：</label>
+        <input
+          id="password"
+          type="password"
+          placeholder="登录密码"
+          autocomplete="current-password"
+        />
+      </div>
+      <div class="row">
+        <label>上报步数：</label>
+        <input
+          id="stepNumber"
+          type="number"
+          min="10000"
+          step="100"
+          value="18000"
+        />
+        <span class="hint">建议 10000 以上</span>
+      </div>
+      <div class="row">
+        <button id="startBtn">开始跑批</button>
+        <span class="hint" id="progressHint">登录 → 自动取设备 → 刷步（无需手填 serial）</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top: 0; font-size: 16px">📋 实时日志</h2>
+      <pre id="log">(等待开始...)</pre>
+    </div>
+
+    <div class="card" id="resultCard" style="display: none">
+      <h2 style="margin-top: 0; font-size: 16px">📊 最终结果</h2>
+      <pre id="result">(尚未完成)</pre>
+    </div>
+
+    <script>
+      const startBtn = document.getElementById("startBtn");
+      const logEl = document.getElementById("log");
+      const resultEl = document.getElementById("result");
+      const resultCard = document.getElementById("resultCard");
+      const badge = document.getElementById("statusBadge");
+      const progressHint = document.getElementById("progressHint");
+
+      function setBadge(text, kind) {
+        badge.textContent = text;
+        badge.className = "badge " + (kind || "");
+      }
+
+      function appendLog(line) {
+        // 已存在内容则换行追加
+        if (logEl.textContent && !logEl.textContent.endsWith("\n")) {
+          logEl.textContent += "\n";
+        }
+        logEl.textContent += line;
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      startBtn.addEventListener("click", async () => {
+        const account = document.getElementById("account").value.trim();
+        const password = document.getElementById("password").value;
+        const stepNumber = document.getElementById("stepNumber").value;
+        if (!account || !password) {
+          alert("请填写账号和密码");
+          return;
+        }
+        startBtn.disabled = true;
+        logEl.textContent = "";
+        resultCard.style.display = "none";
+        setBadge("运行中", "run");
+        progressHint.textContent = "正在与服务端通信，预计 30~90 秒...";
+
+        const body = new URLSearchParams();
+        body.set("account", account);
+        body.set("password", password);
+        body.set("stepNumber", stepNumber);
+
+        let runId;
+        try {
+          const r = await fetch("/run", { method: "POST", body });
+          const j = await r.json();
+          if (!j.runId) throw new Error("未拿到 runId");
+          runId = j.runId;
+        } catch (e) {
+          appendLog("[-] 启动失败: " + e.message);
+          setBadge("启动失败", "fail");
+          startBtn.disabled = false;
+          return;
+        }
+
+        // 打开 SSE 流
+        const es = new EventSource(
+          "/run/stream?runId=" + encodeURIComponent(runId),
+        );
+        es.onmessage = (ev) => {
+          if (ev.data === "__DONE__") {
+            es.close();
+            fetchResult(runId);
+            return;
+          }
+          appendLog(ev.data);
+        };
+        es.onerror = () => {
+          appendLog("[-] 日志流连接中断");
+          es.close();
+          fetchResult(runId);
+        };
+      });
+
+      async function fetchResult(runId) {
+        try {
+          const r = await fetch(
+            "/run/result?runId=" + encodeURIComponent(runId),
+          );
+          const j = await r.json();
+          const res = j.result || {};
+          resultCard.style.display = "block";
+          resultEl.textContent = JSON.stringify(res, null, 2);
+          if (res.ok) {
+            setBadge("成功", "ok");
+            progressHint.textContent = "✓ 步数上报完成";
+          } else {
+            setBadge("失败", "fail");
+            progressHint.textContent = "✗ 请查看上方日志末尾的错误信息";
+          }
+        } catch (e) {
+          appendLog("[-] 拉取结果失败: " + e.message);
+        } finally {
+          startBtn.disabled = false;
+        }
+      }
+    </script>
+  </body>
+</html>

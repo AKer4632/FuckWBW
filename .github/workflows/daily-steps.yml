@@ -1,0 +1,63 @@
+# 每天北京时间 19:00 自动刷步（UTC 11:00）
+# Secrets:
+#   ACCOUNTS  必填，多账号，见下方格式
+#   STEPS     可选，默认 13000
+#
+# ACCOUNTS 示例（多行）：
+#   13369219993:你的密码
+#   13800138000:另一密码
+#
+# 或 JSON：
+#   [{"account":"13369219993","password":"xxx"}]
+
+name: daily-steps
+
+on:
+  schedule:
+    # 北京时间 19:00 = UTC 11:00
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+    inputs:
+      steps:
+        description: "步数（覆盖 Secrets.STEPS）"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  brush:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+          cache: true
+
+      - name: Run auto brush
+        env:
+          ACCOUNTS: ${{ secrets.ACCOUNTS }}
+          SECRET_STEPS: ${{ secrets.STEPS }}
+          INPUT_STEPS: ${{ github.event.inputs.steps }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ACCOUNTS:-}" ]; then
+            echo "::error::Secret ACCOUNTS 未配置（Settings → Secrets → Actions）"
+            exit 1
+          fi
+          # 手动输入 > Secrets.STEPS > 默认 13000
+          if [ -n "${INPUT_STEPS:-}" ]; then
+            export STEPS="$INPUT_STEPS"
+          elif [ -n "${SECRET_STEPS:-}" ]; then
+            export STEPS="$SECRET_STEPS"
+          else
+            export STEPS=13000
+          fi
+          echo "STEPS=$STEPS"
+          go run ./cmd/auto/
