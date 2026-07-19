@@ -140,9 +140,12 @@
           type="number"
           min="10000"
           step="100"
-          value="18000"
+          value="13000"
         />
-        <span class="hint">建议 10000 以上</span>
+        <label style="width: auto; margin-left: 8px">
+          <input id="randomSteps" type="checkbox" checked />
+          随机 10000–13000
+        </label>
       </div>
       <div class="row">
         <button id="startBtn">开始跑批</button>
@@ -186,6 +189,7 @@
         const account = document.getElementById("account").value.trim();
         const password = document.getElementById("password").value;
         const stepNumber = document.getElementById("stepNumber").value;
+        const randomSteps = document.getElementById("randomSteps").checked;
         if (!account || !password) {
           alert("请填写账号和密码");
           return;
@@ -194,12 +198,15 @@
         logEl.textContent = "";
         resultCard.style.display = "none";
         setBadge("运行中", "run");
-        progressHint.textContent = "正在与服务端通信，预计 30~90 秒...";
+        progressHint.textContent = randomSteps
+          ? "随机步数 10000–13000，预计 30~90 秒..."
+          : "正在与服务端通信，预计 30~90 秒...";
 
         const body = new URLSearchParams();
         body.set("account", account);
         body.set("password", password);
         body.set("stepNumber", stepNumber);
+        if (randomSteps) body.set("randomSteps", "1");
 
         let runId;
         try {

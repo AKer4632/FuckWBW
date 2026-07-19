@@ -7,19 +7,28 @@
 //  2) JSON 数组
 //       [{"account":"133...","password":"xxx"},{"user":"...","pass":"..."}]
 //
-// STEPS 默认 13000；也可设 STEP_NUMBER。
+// STEPS:
+//   - 空 / random / rand → 每账号在 10000~13000 间随机
+//   - 数字 → 固定步数
+// 也可设 STEP_NUMBER；RANDOM_STEPS=1 强制随机。
 package main
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"fkw/pipeline"
+)
+
+const (
+	randomStepsMin = 10000
+	randomStepsMax = 13000
 )
 
 type account struct {
@@ -38,19 +47,25 @@ func main() {
 		os.Exit(2)
 	}
 
-	steps := 13000
-	if v := firstNonEmpty(os.Getenv("STEPS"), os.Getenv("STEP_NUMBER")); v != "" {
-		if n, e := strconv.Atoi(v); e == nil && n >= 1000 {
-			steps = n
-		}
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	stepsMode, fixedSteps := parseStepsMode(
+		firstNonEmpty(os.Getenv("STEPS"), os.Getenv("STEP_NUMBER")),
+		os.Getenv("RANDOM_STEPS"),
+	)
+	if stepsMode == "random" {
+		fmt.Printf("[*] 账号数=%d 步数模式=随机(%d~%d)\n", len(accounts), randomStepsMin, randomStepsMax)
+	} else {
+		fmt.Printf("[*] 账号数=%d 步数模式=固定 %d\n", len(accounts), fixedSteps)
 	}
-
-	fmt.Printf("[*] 账号数=%d 目标步数=%d\n", len(accounts), steps)
 
 	fail := 0
 	for i, a := range accounts {
 		mask := maskAccount(a.Account)
-		fmt.Printf("\n========== [%d/%d] %s ==========\n", i+1, len(accounts), mask)
+		steps := fixedSteps
+		if stepsMode == "random" {
+			steps = randomStepsMin + rng.Intn(randomStepsMax-randomStepsMin+1)
+		}
+		fmt.Printf("\n========== [%d/%d] %s steps=%d ==========\n", i+1, len(accounts), mask, steps)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		r := pipeline.Run(ctx, func(line string) { fmt.Println(line) }, a.Account, a.Password, steps)
 		cancel()
@@ -73,6 +88,23 @@ func main() {
 	if fail > 0 {
 		os.Exit(1)
 	}
+}
+
+// parseStepsMode 返回 mode=random|fixed 与固定步数。
+func parseStepsMode(stepsEnv, randomEnv string) (mode string, fixed int) {
+	randomEnv = strings.TrimSpace(strings.ToLower(randomEnv))
+	if randomEnv == "1" || randomEnv == "true" || randomEnv == "yes" || randomEnv == "on" {
+		return "random", 0
+	}
+	s := strings.TrimSpace(strings.ToLower(stepsEnv))
+	if s == "" || s == "random" || s == "rand" || s == "rnd" {
+		return "random", 0
+	}
+	if n, err := strconv.Atoi(s); err == nil && n >= 1000 {
+		return "fixed", n
+	}
+	// 无法解析时走随机
+	return "random", 0
 }
 
 func loadAccounts(raw string) ([]account, error) {

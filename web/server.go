@@ -66,12 +66,16 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 	account := r.FormValue("account")
 	password := r.FormValue("password")
 	stepStr := r.FormValue("stepNumber")
+	randomSteps := r.FormValue("randomSteps") == "1" || r.FormValue("randomSteps") == "true"
 	if account == "" || password == "" {
 		http.Error(w, "账号或密码不能为空", http.StatusBadRequest)
 		return
 	}
-	stepNumber := 18000
-	if stepStr != "" {
+	stepNumber := 13000
+	if randomSteps {
+		// 10000~13000 含端点
+		stepNumber = 10000 + (int(time.Now().UnixNano()) % 3001)
+	} else if stepStr != "" {
 		if v, err := strconv.Atoi(stepStr); err == nil && v >= 1000 {
 			stepNumber = v
 		}

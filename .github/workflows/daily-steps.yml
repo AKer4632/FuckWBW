@@ -1,7 +1,7 @@
 # 每天北京时间 19:00 自动刷步（UTC 11:00）
 # Secrets:
 #   ACCOUNTS  必填，多账号，见下方格式
-#   STEPS     可选，默认 13000
+#   STEPS     可选：数字=固定；random/空=每账号 10000~13000 随机
 #
 # ACCOUNTS 示例（多行）：
 #   13369219993:你的密码
@@ -19,9 +19,9 @@ on:
   workflow_dispatch:
     inputs:
       steps:
-        description: "步数（覆盖 Secrets.STEPS）"
+        description: "步数：空或 random=10000~13000 随机；数字=固定"
         required: false
-        default: ""
+        default: "random"
 
 permissions:
   contents: read
@@ -51,13 +51,13 @@ jobs:
             echo "::error::Secret ACCOUNTS 未配置（Settings → Secrets → Actions）"
             exit 1
           fi
-          # 手动输入 > Secrets.STEPS > 默认 13000
+          # 手动输入 > Secrets.STEPS > 默认 random(10000~13000)
           if [ -n "${INPUT_STEPS:-}" ]; then
             export STEPS="$INPUT_STEPS"
           elif [ -n "${SECRET_STEPS:-}" ]; then
             export STEPS="$SECRET_STEPS"
           else
-            export STEPS=13000
+            export STEPS=random
           fi
           echo "STEPS=$STEPS"
           go run ./cmd/auto/
