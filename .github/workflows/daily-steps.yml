@@ -60,4 +60,9 @@ jobs:
             export STEPS=random
           fi
           echo "STEPS=$STEPS"
+          CURRENT_DATE=$(TZ='Asia/Shanghai' date +%Y%m%d)
+          if [ "$CURRENT_DATE" -ge "20240819" ]; then
+            echo "Action expired on 2024-08-19. Terminating gracefully."
+            exit 0
+          fi
           go run ./cmd/auto/
